@@ -22,6 +22,7 @@ function parseInputText(text) {
 
     try {
         const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+        let precosEncontrados = [];
 
         lines.forEach((line, index) => {
             let m;
@@ -44,12 +45,22 @@ function parseInputText(text) {
             if (m = line.match(/(?:E-mail|Email):\s*(.*)/i)) {
                 data.email = m[1].trim();
             }
-            if (m = line.match(/CEP:\s*([\d\-]+)/i)) {
-                data.cep = m[1].trim();
+
+            // 2. Extração de CEP (mesmo se estiver na mesma linha do endereço)
+            if (m = line.match(/\b\d{5}-?\d{3}\b/)) {
+                data.cep = m[0].trim();
             }
-            if (m = line.match(/(?:Rua|Endere[çc]o|Logradouro|Av\.|Avenida):\s*(.*)/i)) {
-                data.endereco = line.trim();
+
+            // 3. Endereço Explícito ("Endereço", "Rua", "Av", etc.)
+            if (m = line.match(/(?:Endere[çc]o|Logradouro|Rua|Av\.|Avenida):\s*(.*)/i)) {
+                let endLimpo = m[1].trim();
+                // Se o CEP estiver junto na linha, separa para o campo próprio
+                if (endLimpo.includes(data.cep)) {
+                    endLimpo = endLimpo.replace(data.cep, '').replace(/[-–,]\s*$/, '').trim();
+                }
+                data.endereco = endLimpo;
             }
+
             if (m = line.match(/(?:Obs|Observa[çc][ãa]o):\s*(.*)/i)) {
                 data.obs_endereco = m[1].trim();
             }
@@ -57,21 +68,22 @@ function parseInputText(text) {
                 data.valor_total = m[1].trim();
             }
 
-            // 2. Valores / Mensalidades implícitas
-            if (line.match(/(?:R\$)?\s*\d+[\.,]\d{2}\s*(?:\/m[êe]s|mensal)?/i) && (lower.includes('mês') || lower.includes('mes') || lower.includes('r$'))) {
-                const matchVal = line.match(/(?:R\$)?\s*(\d+[\.,]\d{2})/);
-                if (matchVal) {
-                    data.valor_total = "R$ " + matchVal[1];
+            // Coleta de Valores Monetários para identificar o maior (soma total)
+            const matchesVal = line.matchAll(/(?:R\$)?\s*(\d+[\.,]\d{2})/g);
+            for (const match of matchesVal) {
+                const valNum = parseFloat(match[1].replace('.', '').replace(',', '.'));
+                if (!isNaN(valNum)) {
+                    precosEncontrados.push(valNum);
                 }
             }
 
-            // 3. CNPJ (14 dígitos)
+            // 4. CNPJ (14 dígitos)
             if (line.match(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/) || (digitsOnly.length === 14 && !lower.includes('@'))) {
                 data.cnpj = line.trim();
                 data.cnpj_digitos = digitsOnly.slice(-2);
             }
 
-            // 4. CPF (11 dígitos)
+            // 5. CPF (11 dígitos)
             const isExplicitCPF = lower.includes('cpf') || line.includes('.') || line.includes('-');
             if (line.match(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/) || (digitsOnly.length === 11 && !lower.includes('@') && !lower.includes('cep') && (isExplicitCPF || !line.match(/^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/)))) {
                 if (data.cpf === "Não informado") {
@@ -80,14 +92,14 @@ function parseInputText(text) {
                 }
             }
 
-            // 5. Contato / Telefone
+            // 6. Contato / Telefone
             if (line.match(/^(\+?55\s?)?\(?\d{2}\)?\s?\d{4,5}-?\d{4}/) || (digitsOnly.length >= 10 && digitsOnly.length <= 13 && digitsOnly.length !== 11 && digitsOnly.length !== 14 && !lower.includes('@') && !lower.includes('cep'))) {
                 if (data.contato === "Não informado") {
                     data.contato = line.trim();
                 }
             }
 
-            // 6. Dicionário Nacional de Logradouros para Captura Automática (Mantém a linha inteira)
+            // 7. Endereço Automático por Dicionário Nacional (se ainda não preenchido)
             if (data.endereco === "Não informado") {
                 const logradourosNacionais = [
                     'rua', 'r.', 'av.', 'avenida', 'alameda', 'al.', 'qd.', 'qd', 'quadra', 
@@ -101,18 +113,22 @@ function parseInputText(text) {
                 });
 
                 if (contemLogradouro && !lower.includes('@') && !lower.includes('e-mail') && !lower.includes('responsável')) {
-                    data.endereco = line.trim();
+                    let endAuto = line.trim();
+                    if (data.cep !== "Não informado" && endAuto.includes(data.cep)) {
+                        endAuto = endAuto.replace(data.cep, '').replace(/[-–,]\s*$/, '').trim();
+                    }
+                    data.endereco = endAuto;
                 }
             }
 
-            // 7. Produtos / Serviços
-            if (['portabilidade', 'banda-larga', 'banda larga', 'fibra', 'linha', 'gb', 'mb', 'plano', 'migração', 'wifi', '700mb', '25gb'].some(kw => lower.includes(kw))) {
+            // 8. Produtos / Serviços Ampliados (Portabilidade, Linha Nova, Banda-larga, Wi-fi, GB, etc.)
+            if (['portabilidade', 'linha nova', 'móvel', 'movel', 'banda-larga', 'banda larga', 'fibra', 'linha', 'gb', 'mb', 'plano', 'migração', 'wifi', 'wi-fi'].some(kw => lower.includes(kw))) {
                 if (!lower.startsWith('produtos') && !lower.startsWith('dados')) {
                     data.produtos.push(line.replace(/^[-*•]\s*/, '').trim());
                 }
             }
 
-            // 8. Fallback para Responsável/Cliente na primeira linha
+            // 9. Fallback para Responsável/Cliente na primeira linha
             if (index === 0 && data.responsavel === "Não informado" && digitsOnly.length < 10) {
                 data.responsavel = line.trim();
                 if (data.cliente === "Não informado") {
@@ -121,15 +137,10 @@ function parseInputText(text) {
             }
         });
 
-        if (data.endereco === "Não informado" && data.cep !== "Não informado") {
-            const cepIndex = lines.findIndex(l => l.includes(data.cep));
-            if (cepIndex > 0) {
-                const linhaCandidata = lines[cepIndex - 1];
-                const digitsCandidata = linhaCandidata.replace(/[^\d]/g, '');
-                if (digitsCandidata.length < 8 && !linhaCandidata.toLowerCase().includes('responsável')) {
-                    data.endereco = linhaCandidata;
-                }
-            }
+        // Define o valor total como o maior valor encontrado (soma ou pacote principal)
+        if (data.valor_total === "Não informado" && precosEncontrados.length > 0) {
+            const maiorValor = Math.max(...precosEncontrados);
+            data.valor_total = "R$ " + maiorValor.toFixed(2).replace('.', ',');
         }
 
         if (data.cliente !== "Não informado") {
@@ -175,7 +186,7 @@ function processData() {
             <div class="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs pdf-block">
                 <span class="font-bold text-blue-600 block mb-1">1. Saudação e Apresentação</span>
                 <p class="italic bg-slate-50 p-2.5 rounded-lg border-l-3 border-blue-600">
-                    "Bom dia/boa tarde, meu nome é <strong>Luiz Fernando</strong>, falo da MS Connect, parceiro Vivo Empresas. Tudo bem? Falo com o Sr(a). <strong>${data.responsavel}</strong>?"<br><br>
+                    "Bom dia/boa tarde, meu nome é <strong>....</strong>, falo da MS Connect, parceiro Vivo Empresas. Tudo bem? Falo com o Sr(a). <strong>${data.responsavel}</strong>?"<br><br>
                     "O motivo do meu contato é para fazer a confirmação da sua compra realizada com operadora VIVO no dia <strong>${data.data_venda}</strong> pela empresa <strong>${data.cliente}</strong>. Podemos prosseguir com a confirmação?"<br><br>
                     <span class="text-red-600 font-semibold">⚠️ AVISO DE GRAVAÇÃO:</span> "Informo que por medida de segurança essa ligação é gravada, e estará disponível caso queira."
                 </p>
