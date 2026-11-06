@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DCK Base • Automação para Auditorias</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fonte Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Biblioteca HTML2PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- Estilos personalizados -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-[#F8FAFC] min-h-screen text-slate-800 flex flex-col justify-between">
+
+    <!-- Header Corporativo (Estética DCK Base) -->
+    <header class="bg-white border-b border-slate-200/80 shadow-2xs">
+        <div class="max-w-7xl mx-auto px-8 py-4 flex flex-col sm:flex-row justify-between items-center">
+            <!-- Nome e Tagline limpos -->
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2">
+                    <span class="font-extrabold text-slate-900 text-lg tracking-tight">DCK</span>
+                    <span class="font-bold text-blue-600 text-lg tracking-tight">Base</span>
+                    <span class="text-slate-300 font-light mx-1">|</span>
+                    <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Automação de Auditorias</span>
+                </div>
+            </div>
+
+            <!-- Status -->
+            <div class="mt-2 sm:mt-0 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span class="text-xs text-slate-600 font-medium">Sistema Online</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Conteúdo Principal -->
+    <main class="max-w-7xl mx-auto px-6 py-8 w-full flex-grow">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+            <!-- Coluna Esquerda: Entrada de Dados -->
+            <div class="lg:col-span-5 bg-white p-6 rounded-2xl shadow-xs border border-slate-200/80 space-y-4">
+                <div>
+                    <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">1. Inserir Dados do Cliente</h2>
+                    <p class="text-xs text-slate-500 mt-1">Cole os dados brutos abaixo. O sistema estruturará automaticamente para a auditoria.</p>
+                </div>
+                
+                <textarea id="rawInput" rows="14" class="w-full p-3.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-transparent font-mono text-xs leading-relaxed text-slate-700 bg-slate-50/50" placeholder="Insira aqui os dados..."></textarea>
+
+                <div class="flex items-center gap-3 pt-2">
+                    <button onclick="processData()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl shadow-xs transition text-xs flex items-center justify-center">
+                        Emitir auditoria
+                    </button>
+                    <button onclick="clearInput()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium py-3 px-4 rounded-xl transition text-xs">
+                        Limpar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Coluna Direita: Preview -->
+            <div class="lg:col-span-7 bg-white p-6 rounded-2xl shadow-xs border border-slate-200/80 space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 pb-3 gap-2">
+                    <div>
+                        <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wide">2. Script Estruturado Pronto</h2>
+                        <p class="text-xs text-slate-500">Confronte os dados na chamada e baixe o documento oficial.</p>
+                    </div>
+                    <!-- Botão Baixar em PDF -->
+                    <button id="btnDownloadPDF" onclick="exportToPDF()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-xl shadow-xs transition text-xs flex items-center gap-2.5">
+                        <svg class="w-4 h-4 fill-current text-white shrink-0" viewBox="0 0 24 24">
+                            <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                        </svg>
+                        <span>Baixar em PDF</span>
+                    </button>
+                </div>
+
+                <!-- Preview Box -->
+                <div id="previewContainer" class="bg-slate-50/50 p-5 rounded-xl border border-slate-200 text-xs leading-relaxed space-y-4">
+                    <div class="text-center py-20 text-slate-400">
+                        <p class="font-medium text-sm">Nenhum dado processado ainda.</p>
+                        <p class="text-xs mt-1">Cole as informações ao lado e clique em <strong>"Emitir auditoria"</strong>.</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Rodapé -->
+    <footer class="bg-white border-t border-slate-200 py-4 mt-8">
+        <div class="max-w-7xl mx-auto px-6 text-center text-xs text-slate-500">
+            Desenvolvido por <span class="font-semibold text-blue-600">Luiz Fernando M.</span> • DCK Base
+        </div>
+    </footer>
+
+    <!-- Script de lógica -->
+    <script src="scripts.js"></script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+/* ==========================================
+   DESIGN SYSTEM • DCK BASE (Clean SaaS Theme)
+   ========================================== */
+:root {
+    --dck-blue: #2563EB;
+    --dck-blue-dark: #1D4ED8;
+    --dck-bg-light: #F8FAFC;
+    --dck-card-bg: #FFFFFF;
+    --text-color: #1E293B;
+    --font-family: 'Inter', sans-serif;
+}
+
+body {
+    font-family: var(--font-family);
+    color: var(--text-color);
+    background-color: var(--dck-bg-light);
+}
+
+/* Animação de Hover Fluida e Suave para os Botões */
+button {
+    transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1) !important;
+    will-change: transform, box-shadow, background-color;
+}
+
+button:hover:not(:disabled) {
+    transform: translateY(-3px) scale(1.01);
+    box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.3), 
+                0 8px 10px -6px rgba(37, 99, 235, 0.15);
+}
+
+button:active:not(:disabled) {
+    transform: translateY(-1px) scale(1.00);
+    box-shadow: 0 4px 10px -2px rgba(37, 99, 235, 0.2);
+}
+
+/* Scrollbar limpa e moderna */
+#previewContainer::-webkit-scrollbar {
+    width: 5px;
+}
+
+#previewContainer::-webkit-scrollbar-track {
+    background: #f8fafc;
+}
+
+#previewContainer::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+#previewContainer::-webkit-scrollbar-thumb:hover {
+    background: var(--dck-blue);
+}
+
+/* Ajustes de prevenção de corte ao gerar PDF */
+#previewContainer {
+    max-height: none !important;
+    overflow: visible !important;
+    height: auto !important;
+}
+
+/* Previne cortes ao meio de cartões e blocos de texto */
+.pdf-block, 
+#previewContainer > div > div, 
+p, 
+ul, 
+li {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+}
