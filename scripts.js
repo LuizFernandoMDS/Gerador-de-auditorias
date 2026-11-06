@@ -16,6 +16,7 @@ function parseInputText(text) {
         endereco: "Não informado",
         obs_endereco: "",
         produtos: [],
+        telefones_moveis: [],
         valor_total: "Não informado",
         data_venda: new Date().toLocaleDateString('pt-BR')
     };
@@ -29,7 +30,7 @@ function parseInputText(text) {
             const lower = line.toLowerCase();
             const digitsOnly = line.replace(/[^\d]/g, '');
 
-            // 1. Rótulos Explícitos
+            // 1. Rótulos Explícitos Básicos
             if (m = line.match(/(?:Cliente|Raz[ãa]o Social|Empresa):\s*(.*)/i)) {
                 data.cliente = m[1].trim();
             }
@@ -46,34 +47,57 @@ function parseInputText(text) {
                 data.email = m[1].trim();
             }
 
-            // 2. Extração de CEP (mesmo se estiver na mesma linha do endereço)
+            // 2. Extração de CEP
             if (m = line.match(/\b\d{5}-?\d{3}\b/)) {
                 data.cep = m[0].trim();
             }
 
-            // 3. Endereço Explícito ("Endereço", "Rua", "Av", etc.)
-            if (m = line.match(/(?:Endere[çc]o|Logradouro|Rua|Av\.|Avenida):\s*(.*)/i)) {
-                let endLimpo = m[1].trim();
-                // Se o CEP estiver junto na linha, separa para o campo próprio
-                if (endLimpo.includes(data.cep)) {
-                    endLimpo = endLimpo.replace(data.cep, '').replace(/[-–,]\s*$/, '').trim();
+            // 3. Endereço Explícito ("Endereço:", "Endereço", "Rua", "Av", etc.)
+            if (data.endereco === "Não informado") {
+                const isExplicitLabel = lower.startsWith('endereço') || lower.startsWith('endereco') || lower.startsWith('logradouro') || lower.startsWith('rua') || lower.startsWith('av.') || lower.startsWith('avenida');
+                const matchExplicit = line.match(/(?:Endere[çc]o|Endereco|Logradouro):\s*(.*)/i);
+
+                if (isExplicitLabel || matchExplicit) {
+                    let endLimpo = matchExplicit ? matchExplicit[1].trim() : line.replace(/^(Endereço|Endereco|Logradouro):?\s*/i, '').trim();
+                    if (data.cep !== "Não informado" && endLimpo.includes(data.cep)) {
+                        endLimpo = endLimpo.replace(data.cep, '').replace(/[-–,]\s*$/, '').trim();
+                    }
+                    if (endLimpo.length > 2) {
+                        data.endereco = endLimpo;
+                    }
                 }
-                data.endereco = endLimpo;
             }
 
-            if (m = line.match(/(?:Obs|Observa[çc][ãa]o):\s*(.*)/i)) {
-                data.obs_endereco = m[1].trim();
+            if (m = line.match(/(?:Obs|Observa[çc][ãa]o|Complemento):\s*(.*)/i)) {
+                if (data.obs_endereco) {
+                    data.obs_endereco += " - " + m[1].trim();
+                } else {
+                    data.obs_endereco = m[1].trim();
+                }
             }
+
             if (m = line.match(/Valor total.*:\s*(.*)/i)) {
                 data.valor_total = m[1].trim();
             }
 
-            // Coleta de Valores Monetários para identificar o maior (soma total)
-            const matchesVal = line.matchAll(/(?:R\$)?\s*(\d+[\.,]\d{2})/g);
+            // Coleta de Valores Monetários (Suporta decimais e valores inteiros com R$, ex: 99,99 / R$55 / R$ 40)
+            const matchesVal = line.matchAll(/(?:R\$)?\s*(\d{1,3}(?:\.\d{3})*(?:[\.,]\d{2})?)/g);
             for (const match of matchesVal) {
-                const valNum = parseFloat(match[1].replace('.', '').replace(',', '.'));
-                if (!isNaN(valNum)) {
-                    precosEncontrados.push(valNum);
+                let valStr = match[1];
+                // Se não tem parte decimal explícita mas tem R$ na frente ou contexto de preço, trata como inteiro
+                if (!valStr.includes(',') && !valStr.includes('.')) {
+                    if (line.includes('R$') || line.includes('$')) {
+                        const valNum = parseFloat(valStr);
+                        if (!isNaN(valNum) && valNum < 10000) {
+                            precosEncontrados.push(valNum);
+                        }
+                    }
+                } else {
+                    valStr = valStr.replace(/\./g, '').replace(',', '.');
+                    const valNum = parseFloat(valStr);
+                    if (!isNaN(valNum) && valNum < 10000) {
+                        precosEncontrados.push(valNum);
+                    }
                 }
             }
 
@@ -92,14 +116,14 @@ function parseInputText(text) {
                 }
             }
 
-            // 6. Contato / Telefone
-            if (line.match(/^(\+?55\s?)?\(?\d{2}\)?\s?\d{4,5}-?\d{4}/) || (digitsOnly.length >= 10 && digitsOnly.length <= 13 && digitsOnly.length !== 11 && digitsOnly.length !== 14 && !lower.includes('@') && !lower.includes('cep'))) {
+            // 6. Contato Principal
+            if (line.match(/^(\+?55\s?)?\(?\d{2}\)?\s?\d{4,5}-?\d{4}/) && (lower.includes('contato') || index < 4)) {
                 if (data.contato === "Não informado") {
                     data.contato = line.trim();
                 }
             }
 
-            // 7. Endereço Automático por Dicionário Nacional (se ainda não preenchido)
+            // 7. Endereço Automático por Dicionário Nacional
             if (data.endereco === "Não informado") {
                 const logradourosNacionais = [
                     'rua', 'r.', 'av.', 'avenida', 'alameda', 'al.', 'qd.', 'qd', 'quadra', 
@@ -112,7 +136,7 @@ function parseInputText(text) {
                     return regex.test(lower);
                 });
 
-                if (contemLogradouro && !lower.includes('@') && !lower.includes('e-mail') && !lower.includes('responsável')) {
+                if (contemLogradouro && !lower.includes('@') && !lower.includes('e-mail') && !lower.includes('responsável') && !lower.includes('complemento')) {
                     let endAuto = line.trim();
                     if (data.cep !== "Não informado" && endAuto.includes(data.cep)) {
                         endAuto = endAuto.replace(data.cep, '').replace(/[-–,]\s*$/, '').trim();
@@ -121,10 +145,16 @@ function parseInputText(text) {
                 }
             }
 
-            // 8. Produtos / Serviços Ampliados (Portabilidade, Linha Nova, Banda-larga, Wi-fi, GB, etc.)
-            if (['portabilidade', 'linha nova', 'móvel', 'movel', 'banda-larga', 'banda larga', 'fibra', 'linha', 'gb', 'mb', 'plano', 'migração', 'wifi', 'wi-fi'].some(kw => lower.includes(kw))) {
-                if (!lower.startsWith('produtos') && !lower.startsWith('dados')) {
-                    data.produtos.push(line.replace(/^[-*•]\s*/, '').trim());
+            // 8. Produtos, Serviços e Telefones da Proposta (Blindado contra metadados e contato do gestor)
+            const isMetadataLine = lower.includes('cpf') || lower.includes('cnpj') || lower.includes('gestor') || lower.includes('e-mail') || lower.includes('email') || lower.includes('endereço') || lower.includes('cep') || lower.includes('contato:') || lower.includes('telefone:');
+
+            if (!isMetadataLine) {
+                if (['portabilidade', 'linha nova', 'móvel', 'movel', 'banda-larga', 'banda larga', 'fibra', 'linha', 'gb', 'mb', 'plano', 'migração', 'wifi', 'wi-fi'].some(kw => lower.includes(kw))) {
+                    if (!lower.startsWith('produtos') && !lower.startsWith('dados') && !lower.startsWith('proposta')) {
+                        data.produtos.push(line.replace(/^[-*•]\s*/, '').trim());
+                    }
+                } else if (line.match(/\(?\d{2}\)?\s?\d{4,5}-?\d{4}/) && (lower.includes('claro') || lower.includes('vivo') || lower.includes('tim') || lower.includes('oi') || digitsOnly.length >= 10)) {
+                    data.telefones_moveis.push(line.trim());
                 }
             }
 
@@ -137,10 +167,10 @@ function parseInputText(text) {
             }
         });
 
-        // Define o valor total como o maior valor encontrado (soma ou pacote principal)
+        // Cálculo da mensalidade por soma total dos valores encontrados
         if (data.valor_total === "Não informado" && precosEncontrados.length > 0) {
-            const maiorValor = Math.max(...precosEncontrados);
-            data.valor_total = "R$ " + maiorValor.toFixed(2).replace('.', ',');
+            const somaTotal = precosEncontrados.reduce((acc, curr) => acc + curr, 0);
+            data.valor_total = "R$ " + somaTotal.toFixed(2).replace('.', ',');
         }
 
         if (data.cliente !== "Não informado") {
@@ -150,7 +180,7 @@ function parseInputText(text) {
             }
         }
 
-        if (data.produtos.length === 0) {
+        if (data.produtos.length === 0 && data.telefones_moveis.length === 0) {
             data.produtos.push("Planos e Serviços Corporativos conforme solicitação.");
         }
     } catch (err) {
@@ -197,6 +227,8 @@ function processData() {
                 <p class="mb-1">O plano contratado possui os seguintes benefícios:</p>
                 <ul class="list-disc list-inside space-y-1 mb-2 font-medium text-slate-800">
                     ${data.produtos.map(p => `<li>${p}</li>`).join('')}
+                    ${data.telefones_moveis.length > 0 ? `<li class="list-none mt-2 font-semibold text-blue-600">📱 Linhas Móveis:</li>` : ''}
+                    ${data.telefones_moveis.map(t => `<li class="ml-4">${t}</li>`).join('')}
                 </ul>
                 <p>• <strong>Valor da Mensalidade:</strong> ${data.valor_total} (primeira parcela cobrada de forma proporcional).</p>
                 <p>• <strong>Validade do Contrato (Fidelidade):</strong> 24 meses.</p>
