@@ -30,61 +30,76 @@ function parseInputText(text) {
             const lower = line.toLowerCase();
             const digitsOnly = line.replace(/[^\d]/g, '');
 
-            // 1. Rótulos Explícitos Básicos
-            if (m = line.match(/(?:Cliente|Raz[ãa]o Social|Empresa):\s*(.*)/i)) {
+            // ==========================================
+            // 1. CAPTURA POR RÓTULOS EXPLÍCITOS (PRIORIDADE MÁXIMA)
+            // ==========================================
+            if (m = line.match(/^(?:Cliente|Raz[ãa]o\s*Social|Empresa):\s*(.*)/i)) {
                 data.cliente = m[1].trim();
+                return;
             }
-            if (m = line.match(/(?:Respons[aá]vel|Nome):\s*(.*)/i)) {
+            if (m = line.match(/^(?:Respons[aá]vel|Nome):\s*(.*)/i)) {
                 data.responsavel = m[1].trim();
+                return;
             }
-            if (m = line.match(/Qualifica[çc][ãa]o:\s*(.*)/i)) {
+            if (m = line.match(/^Qualifica[çc][ãa]o:\s*(.*)/i)) {
                 data.qualificacao = m[1].trim();
+                return;
             }
-            if (m = line.match(/(?:Contato|Telefone|Celular|WhatsApp):\s*(.*)/i)) {
+            if (m = line.match(/^(?:Contato|Telefone|Celular|WhatsApp):\s*(.*)/i)) {
                 data.contato = m[1].trim();
+                return;
             }
-            if (m = line.match(/(?:E-mail|Email):\s*(.*)/i)) {
+            if (m = line.match(/^(?:E-mail|Email):\s*(.*)/i)) {
                 data.email = m[1].trim();
+                return;
+            }
+            if (m = line.match(/^(?:CNPJ):\s*(.*)/i)) {
+                const valCNPJ = m[1].trim();
+                const digCNPJ = valCNPJ.replace(/[^\d]/g, '');
+                data.cnpj = valCNPJ;
+                if (digCNPJ.length >= 2) data.cnpj_digitos = digCNPJ.slice(-2);
+                return;
+            }
+            if (m = line.match(/^(?:CPF):\s*(.*)/i)) {
+                const valCPF = m[1].trim();
+                const digCPF = valCPF.replace(/[^\d]/g, '');
+                data.cpf = valCPF;
+                if (digCPF.length >= 2) data.cpf_digitos = digCPF.slice(-2);
+                return;
+            }
+            if (m = line.match(/^(?:Endere[çc]o|Endereco|Logradouro):\s*(.*)/i)) {
+                let endVal = m[1].trim();
+                // Extrai CEP se estiver na mesma linha do endereço explícito
+                const cepMatch = endVal.match(/\b\d{5}-?\d{3}\b/);
+                if (cepMatch) {
+                    data.cep = cepMatch[0].trim();
+                    endVal = endVal.replace(cepMatch[0], '').replace(/[-–,|]\s*$/, '').trim();
+                }
+                data.endereco = endVal;
+                return;
+            }
+            if (m = line.match(/^(?:Obs|Observa[çc][ãa]o|Complemento):\s*(.*)/i)) {
+                data.obs_endereco = m[1].trim();
+                return;
+            }
+            if (m = line.match(/Valor total.*:\s*(.*)/i)) {
+                data.valor_total = m[1].trim();
+                return;
             }
 
-            // 2. Extração de CEP
+            // ==========================================
+            // 2. CAPTURA AUTOMÁTICA / CORINGA (CASO NÃO TENHA RÓTULO EXATO)
+            // ==========================================
+
+            // Extração de CEP avulso
             if (m = line.match(/\b\d{5}-?\d{3}\b/)) {
                 data.cep = m[0].trim();
             }
 
-            // 3. Endereço Explícito ("Endereço:", "Endereço", "Rua", "Av", etc.)
-            if (data.endereco === "Não informado") {
-                const isExplicitLabel = lower.startsWith('endereço') || lower.startsWith('endereco') || lower.startsWith('logradouro') || lower.startsWith('rua') || lower.startsWith('av.') || lower.startsWith('avenida');
-                const matchExplicit = line.match(/(?:Endere[çc]o|Endereco|Logradouro):\s*(.*)/i);
-
-                if (isExplicitLabel || matchExplicit) {
-                    let endLimpo = matchExplicit ? matchExplicit[1].trim() : line.replace(/^(Endereço|Endereco|Logradouro):?\s*/i, '').trim();
-                    if (data.cep !== "Não informado" && endLimpo.includes(data.cep)) {
-                        endLimpo = endLimpo.replace(data.cep, '').replace(/[-–,]\s*$/, '').trim();
-                    }
-                    if (endLimpo.length > 2) {
-                        data.endereco = endLimpo;
-                    }
-                }
-            }
-
-            if (m = line.match(/(?:Obs|Observa[çc][ãa]o|Complemento):\s*(.*)/i)) {
-                if (data.obs_endereco) {
-                    data.obs_endereco += " - " + m[1].trim();
-                } else {
-                    data.obs_endereco = m[1].trim();
-                }
-            }
-
-            if (m = line.match(/Valor total.*:\s*(.*)/i)) {
-                data.valor_total = m[1].trim();
-            }
-
-            // Coleta de Valores Monetários (Suporta decimais e valores inteiros com R$, ex: 99,99 / R$55 / R$ 40)
+            // Coleta de Valores Monetários
             const matchesVal = line.matchAll(/(?:R\$)?\s*(\d{1,3}(?:\.\d{3})*(?:[\.,]\d{2})?)/g);
             for (const match of matchesVal) {
                 let valStr = match[1];
-                // Se não tem parte decimal explícita mas tem R$ na frente ou contexto de preço, trata como inteiro
                 if (!valStr.includes(',') && !valStr.includes('.')) {
                     if (line.includes('R$') || line.includes('$')) {
                         const valNum = parseFloat(valStr);
@@ -101,29 +116,26 @@ function parseInputText(text) {
                 }
             }
 
-            // 4. CNPJ (14 dígitos)
-            if (line.match(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/) || (digitsOnly.length === 14 && !lower.includes('@'))) {
-                data.cnpj = line.trim();
-                data.cnpj_digitos = digitsOnly.slice(-2);
+            // CNPJ Automático (14 dígitos) sem rótulo
+            if (data.cnpj === "Não informado") {
+                if (line.match(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/) || (digitsOnly.length === 14 && !lower.includes('@') && !lower.includes('portabilidade'))) {
+                    data.cnpj = line.trim();
+                    data.cnpj_digitos = digitsOnly.slice(-2);
+                    return;
+                }
             }
 
-            // 5. CPF (11 dígitos)
-            const isExplicitCPF = lower.includes('cpf') || line.includes('.') || line.includes('-');
-            if (line.match(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/) || (digitsOnly.length === 11 && !lower.includes('@') && !lower.includes('cep') && (isExplicitCPF || !line.match(/^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/)))) {
-                if (data.cpf === "Não informado") {
+            // CPF Automático (11 dígitos) sem rótulo
+            if (data.cpf === "Não informado") {
+                const isExplicitCPF = lower.includes('cpf') || line.includes('.') || line.includes('-');
+                if (line.match(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/) || (digitsOnly.length === 11 && !lower.includes('@') && !lower.includes('cep') && isExplicitCPF)) {
                     data.cpf = line.trim();
                     data.cpf_digitos = digitsOnly.slice(-2);
+                    return;
                 }
             }
 
-            // 6. Contato Principal
-            if (line.match(/^(\+?55\s?)?\(?\d{2}\)?\s?\d{4,5}-?\d{4}/) && (lower.includes('contato') || index < 4)) {
-                if (data.contato === "Não informado") {
-                    data.contato = line.trim();
-                }
-            }
-
-            // 7. Endereço Automático por Dicionário Nacional
+            // Endereço Automático por Dicionário Nacional de Logradouros
             if (data.endereco === "Não informado") {
                 const logradourosNacionais = [
                     'rua', 'r.', 'av.', 'avenida', 'alameda', 'al.', 'qd.', 'qd', 'quadra', 
@@ -136,16 +148,17 @@ function parseInputText(text) {
                     return regex.test(lower);
                 });
 
-                if (contemLogradouro && !lower.includes('@') && !lower.includes('e-mail') && !lower.includes('responsável') && !lower.includes('complemento')) {
+                if (contemLogradouro && !lower.includes('@') && !lower.includes('e-mail') && !lower.includes('responsável')) {
                     let endAuto = line.trim();
                     if (data.cep !== "Não informado" && endAuto.includes(data.cep)) {
                         endAuto = endAuto.replace(data.cep, '').replace(/[-–,]\s*$/, '').trim();
                     }
                     data.endereco = endAuto;
+                    return;
                 }
             }
 
-            // 8. Produtos, Serviços e Telefones da Proposta (Blindado contra metadados e contato do gestor)
+            // Produtos, Serviços e Telefones Móveis da Proposta
             const isMetadataLine = lower.includes('cpf') || lower.includes('cnpj') || lower.includes('gestor') || lower.includes('e-mail') || lower.includes('email') || lower.includes('endereço') || lower.includes('cep') || lower.includes('contato:') || lower.includes('telefone:');
 
             if (!isMetadataLine) {
@@ -158,7 +171,7 @@ function parseInputText(text) {
                 }
             }
 
-            // 9. Fallback para Responsável/Cliente na primeira linha
+            // Fallback para Responsável/Cliente na primeira linha
             if (index === 0 && data.responsavel === "Não informado" && digitsOnly.length < 10) {
                 data.responsavel = line.trim();
                 if (data.cliente === "Não informado") {
@@ -167,7 +180,6 @@ function parseInputText(text) {
             }
         });
 
-        // Cálculo da mensalidade por soma total dos valores encontrados
         if (data.valor_total === "Não informado" && precosEncontrados.length > 0) {
             const somaTotal = precosEncontrados.reduce((acc, curr) => acc + curr, 0);
             data.valor_total = "R$ " + somaTotal.toFixed(2).replace('.', ',');
