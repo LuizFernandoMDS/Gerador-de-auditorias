@@ -87,9 +87,8 @@ function parseInputText(text) {
             }
 
             // ==========================================
-            // 2. CAPTURA AUTOMÁTICA / CORINGA (CASO NÃO TENHA RÓTULO EXATO)
+            // 2. CAPTURA AUTOMÁTICA / CORINGA
             // ==========================================
-
             if (m = line.match(/\b\d{5}-?\d{3}\b/)) {
                 data.cep = m[0].trim();
             }
@@ -234,8 +233,8 @@ function processData() {
                     ${data.telefones_moveis.length > 0 ? `<li class="list-none mt-2 font-semibold text-blue-600">📱 Linhas Móveis:</li>` : ''}
                     ${data.telefones_moveis.map(t => `<li class="ml-4">${t}</li>`).join('')}
                 </ul>
-                <p>• <strong>Valor da Mensalidade:</strong> ${data.valor_total} (primeira parcela cobrada de forma proporcional).</p>
                 <p>• <strong>Validade do Contrato (Fidelidade):</strong> 24 meses.</p>
+                <p>• <strong>Valor da Mensalidade:</strong> ${data.valor_total} (primeira parcela cobrada de forma proporcional).</p>
             </div>
 
             <div class="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs pdf-block">
@@ -247,16 +246,19 @@ function processData() {
             </div>
 
             <div class="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs pdf-block">
-                <span class="font-bold text-blue-600 block mb-1">4. Validação de Representação e Documentos</span>
-                <p class="mb-2">"O Senhor(a) é representante legal da empresa? Caso não, qual é sua função?" <em>(O aceite de voz/digital é exclusivo do representante legal).</em></p>
-                <div class="grid grid-cols-2 gap-2 mb-2 bg-slate-50 p-2.5 rounded-lg">
-                    <div><strong>Nome:</strong> ${data.responsavel}</div>
-                    <div><strong>Contato:</strong> ${data.contato}</div>
-                    <div><strong>CNPJ:</strong> ${data.cnpj} <span class="bg-blue-100 text-blue-900 font-bold px-1.5 py-0.5 rounded">Finais: ${data.cnpj_digitos}</span></div>
-                    <div><strong>CPF:</strong> ${data.cpf} <span class="bg-blue-100 text-blue-900 font-bold px-1.5 py-0.5 rounded">Finais: ${data.cpf_digitos}</span></div>
-                    <div class="col-span-2"><strong>E-mail:</strong> ${data.email}</div>
+                <span class="font-bold text-blue-600 block mb-1">4. VALIDAÇÃO DE REPRESENTAÇÃO E CONTATOS</span>
+                <p class="mb-2 italic">"O Senhor(a) é representante legal da empresa? Caso não, qual é sua função?" <em>(O aceite de voz/digital é exclusivo do representante legal).</em></p>
+                
+                <div class="space-y-2 bg-slate-50 p-3 rounded-lg font-medium">
+                    <p>1. Poderia me confirmar o seu nome completo?<br><span class="text-blue-700 font-bold">${data.responsavel}</span></p>
+                    <p>2. Poderia me informar os dois últimos dígitos do seu CNPJ?<br><span class="text-blue-700 font-bold">${data.cnpj}</span> <span class="bg-blue-100 text-blue-900 font-bold px-1.5 py-0.5 rounded text-[11px]">Finais: ${data.cnpj_digitos}</span></p>
+                    <p>3. Poderia me informar os dois últimos dígitos do seu CPF?<br><span class="text-blue-700 font-bold">${data.cpf}</span> <span class="bg-blue-100 text-blue-900 font-bold px-1.5 py-0.5 rounded text-[11px]">Finais: ${data.cpf_digitos}</span></p>
+                    <p>4. Poderia me confirmar o seu E-mail?<br><span class="text-blue-700 font-bold">${data.email}</span></p>
+                    <p>5. Poderia me confirmar o número que estamos falando?<br><span class="text-blue-700 font-bold">${data.contato}</span></p>
+                    <p>6. Deseja incluir mais algum outro número para contato?</p>
                 </div>
-                <p class="text-red-600 font-medium">⚠️ <strong>Em caso de divergência:</strong> "Os dados informados divergem do nosso sistema. Por segurança, vou devolver o pedido para a área comercial para correção e eles entrarão em contato novamente, tudo bem?"</p>
+
+                <p class="text-red-600 font-medium mt-3">⚠️ <strong>Em caso de divergência:</strong> "Os dados informados divergem do nosso sistema. Por segurança, vou devolver o pedido para a área comercial para correção e eles entrarão em contato novamente, tudo bem?"</p>
             </div>
 
             <div class="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs pdf-block">
