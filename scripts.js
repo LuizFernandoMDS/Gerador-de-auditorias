@@ -25,8 +25,10 @@ function parseInputText(text) {
 
         lines.forEach((line, index) => {
             let m;
+            const lower = line.toLowerCase();
+            const digitsOnly = line.replace(/[^\d]/g, '');
 
-            // 1. Identificação por Rótulos Explícitos
+            // 1. Rótulos Explícitos
             if (m = line.match(/(?:Cliente|Raz[ãa]o Social|Empresa):\s*(.*)/i)) {
                 data.cliente = m[1].trim();
             }
@@ -36,7 +38,7 @@ function parseInputText(text) {
             if (m = line.match(/Qualifica[çc][ãa]o:\s*(.*)/i)) {
                 data.qualificacao = m[1].trim();
             }
-            if (m = line.match(/(?:Contato|Telefone|Celular):\s*(.*)/i)) {
+            if (m = line.match(/(?:Contato|Telefone|Celular|WhatsApp):\s*(.*)/i)) {
                 data.contato = m[1].trim();
             }
             if (m = line.match(/(?:E-mail|Email):\s*(.*)/i)) {
@@ -45,53 +47,73 @@ function parseInputText(text) {
             if (m = line.match(/CEP:\s*([\d\-]+)/i)) {
                 data.cep = m[1].trim();
             }
-            if (m = line.match(/(?:Rua|Endere[çc]o|Logradouro):\s*(.*)/i)) {
+            if (m = line.match(/(?:Rua|Endere[çc]o|Logradouro|Av\.|Avenida):\s*(.*)/i)) {
                 data.endereco = line.trim();
             }
             if (m = line.match(/(?:Obs|Observa[çc][ãa]o):\s*(.*)/i)) {
                 data.obs_endereco = m[1].trim();
             }
-
-            // 2. Reconhecimento Explícito ou Implícito de Valor Total / Mensalidade
             if (m = line.match(/Valor total.*:\s*(.*)/i)) {
                 data.valor_total = m[1].trim();
-            } else if (line.match(/(?:R\$)?\s*\d+[\.,]\d{2}\s*(?:\/m[êe]s|mensal)?/i) && (line.toLowerCase().includes('mês') || line.toLowerCase().includes('mes') || line.toLowerCase().includes('r$'))) {
-                // Extrai o valor monetário caso esteja em uma linha de produto ou solto
+            }
+
+            // 2. Valores / Mensalidades implícitas
+            if (line.match(/(?:R\$)?\s*\d+[\.,]\d{2}\s*(?:\/m[êe]s|mensal)?/i) && (lower.includes('mês') || lower.includes('mes') || lower.includes('r$'))) {
                 const matchVal = line.match(/(?:R\$)?\s*(\d+[\.,]\d{2})/);
                 if (matchVal) {
                     data.valor_total = "R$ " + matchVal[1];
                 }
             }
 
-            // 3. Reconhecimento Automático de CNPJ (14 dígitos com ou sem pontuação)
-            const cnpjCleanMatch = line.replace(/[^\d]/g, '');
-            if (line.match(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/) || (cnpjCleanMatch.length === 14 && !line.includes('@'))) {
+            // 3. CNPJ (14 dígitos)
+            if (line.match(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/) || (digitsOnly.length === 14 && !lower.includes('@'))) {
                 data.cnpj = line.trim();
-                data.cnpj_digitos = cnpjCleanMatch.slice(-2);
+                data.cnpj_digitos = digitsOnly.slice(-2);
             }
 
-            // 4. Reconhecimento Automático de CPF (11 dígitos com ou sem pontuação)
-            if (line.match(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/) || (cnpjCleanMatch.length === 11 && !line.includes('@') && !line.toLowerCase().includes('cep'))) {
-                data.cpf = line.trim();
-                data.cpf_digitos = cnpjCleanMatch.slice(-2);
+            // 4. CPF (11 dígitos)
+            const isExplicitCPF = lower.includes('cpf') || line.includes('.') || line.includes('-');
+            if (line.match(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/) || (digitsOnly.length === 11 && !lower.includes('@') && !lower.includes('cep') && (isExplicitCPF || !line.match(/^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/)))) {
+                if (data.cpf === "Não informado") {
+                    data.cpf = line.trim();
+                    data.cpf_digitos = digitsOnly.slice(-2);
+                }
             }
 
-            // 5. Reconhecimento de Telefones Soltos (ex: 62 984209964)
-            if (line.match(/^(\+?55\s?)?\(?\d{2}\)?\s?\d{4,5}-?\d{4}/)) {
+            // 5. Contato / Telefone
+            if (line.match(/^(\+?55\s?)?\(?\d{2}\)?\s?\d{4,5}-?\d{4}/) || (digitsOnly.length >= 10 && digitsOnly.length <= 13 && digitsOnly.length !== 11 && digitsOnly.length !== 14 && !lower.includes('@') && !lower.includes('cep'))) {
                 if (data.contato === "Não informado") {
                     data.contato = line.trim();
                 }
             }
 
-            // 6. Identificação de Produtos / Serviços
-            if (['portabilidade', 'banda-larga', 'banda larga', 'fibra', 'linha', 'gb', 'mb', 'plano', 'migração', 'wifi', '700mb', '25gb'].some(kw => line.toLowerCase().includes(kw))) {
-                if (!line.toLowerCase().startsWith('produtos') && !line.toLowerCase().startsWith('dados')) {
+            // 6. Dicionário Nacional de Logradouros para Captura Automática (Mantém a linha inteira)
+            if (data.endereco === "Não informado") {
+                const logradourosNacionais = [
+                    'rua', 'r.', 'av.', 'avenida', 'alameda', 'al.', 'qd.', 'qd', 'quadra', 
+                    'lt.', 'lt', 'lote', 'setor', 'st.', 'st', 'travessa', 'tv.', 'rodovia', 
+                    'rod.', 'estrada', 'est.', 'conjunto', 'cj.', 'praça', 'pc.'
+                ];
+                
+                const contemLogradouro = logradourosNacionais.some(termo => {
+                    const regex = new RegExp(`(^|\\s)${termo}(\\s|$)`, 'i');
+                    return regex.test(lower);
+                });
+
+                if (contemLogradouro && !lower.includes('@') && !lower.includes('e-mail') && !lower.includes('responsável')) {
+                    data.endereco = line.trim();
+                }
+            }
+
+            // 7. Produtos / Serviços
+            if (['portabilidade', 'banda-larga', 'banda larga', 'fibra', 'linha', 'gb', 'mb', 'plano', 'migração', 'wifi', '700mb', '25gb'].some(kw => lower.includes(kw))) {
+                if (!lower.startsWith('produtos') && !lower.startsWith('dados')) {
                     data.produtos.push(line.replace(/^[-*•]\s*/, '').trim());
                 }
             }
 
-            // 7. Fallback Inteligente para a primeira linha caso não tenha rótulo
-            if (index === 0 && data.responsavel === "Não informado" && !line.match(/\d{11,14}/)) {
+            // 8. Fallback para Responsável/Cliente na primeira linha
+            if (index === 0 && data.responsavel === "Não informado" && digitsOnly.length < 10) {
                 data.responsavel = line.trim();
                 if (data.cliente === "Não informado") {
                     data.cliente = line.trim() + " LTDA";
@@ -99,7 +121,17 @@ function parseInputText(text) {
             }
         });
 
-        // Extrai a primeira palavra da Razão Social para o nome do arquivo PDF
+        if (data.endereco === "Não informado" && data.cep !== "Não informado") {
+            const cepIndex = lines.findIndex(l => l.includes(data.cep));
+            if (cepIndex > 0) {
+                const linhaCandidata = lines[cepIndex - 1];
+                const digitsCandidata = linhaCandidata.replace(/[^\d]/g, '');
+                if (digitsCandidata.length < 8 && !linhaCandidata.toLowerCase().includes('responsável')) {
+                    data.endereco = linhaCandidata;
+                }
+            }
+        }
+
         if (data.cliente !== "Não informado") {
             const palavras = data.cliente.replace(/[^\w\s]/gi, '').trim().split(/\s+/);
             if (palavras.length > 0 && palavras[0]) {
@@ -243,7 +275,7 @@ function exportToPDF() {
     html2pdf().set(opt).from(element).save().then(() => {
         btn.innerHTML = `
             <svg class="w-4 h-4 fill-current text-white shrink-0" viewBox="0 0 24 24">
-                <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm0-3-5V3.5L18.5 9H13z"/>
+                <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
             </svg>
             <span>Baixar em PDF</span>
         `;
@@ -252,7 +284,7 @@ function exportToPDF() {
         console.error("Erro ao gerar PDF:", err);
         btn.innerHTML = `
             <svg class="w-4 h-4 fill-current text-white shrink-0" viewBox="0 0 24 24">
-                <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm0-3-5V3.5L18.5 9H13z"/>
+                <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
             </svg>
             <span>Baixar em PDF</span>
         `;
