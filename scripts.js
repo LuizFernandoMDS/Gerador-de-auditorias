@@ -69,7 +69,6 @@ function parseInputText(text) {
             }
             if (m = line.match(/^(?:Endere[çc]o|Endereco|Logradouro):\s*(.*)/i)) {
                 let endVal = m[1].trim();
-                // Extrai CEP se estiver na mesma linha do endereço explícito
                 const cepMatch = endVal.match(/\b\d{5}-?\d{3}\b/);
                 if (cepMatch) {
                     data.cep = cepMatch[0].trim();
@@ -91,12 +90,10 @@ function parseInputText(text) {
             // 2. CAPTURA AUTOMÁTICA / CORINGA (CASO NÃO TENHA RÓTULO EXATO)
             // ==========================================
 
-            // Extração de CEP avulso
             if (m = line.match(/\b\d{5}-?\d{3}\b/)) {
                 data.cep = m[0].trim();
             }
 
-            // Coleta de Valores Monetários
             const matchesVal = line.matchAll(/(?:R\$)?\s*(\d{1,3}(?:\.\d{3})*(?:[\.,]\d{2})?)/g);
             for (const match of matchesVal) {
                 let valStr = match[1];
@@ -116,7 +113,6 @@ function parseInputText(text) {
                 }
             }
 
-            // CNPJ Automático (14 dígitos) sem rótulo
             if (data.cnpj === "Não informado") {
                 if (line.match(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/) || (digitsOnly.length === 14 && !lower.includes('@') && !lower.includes('portabilidade'))) {
                     data.cnpj = line.trim();
@@ -125,7 +121,6 @@ function parseInputText(text) {
                 }
             }
 
-            // CPF Automático (11 dígitos) sem rótulo
             if (data.cpf === "Não informado") {
                 const isExplicitCPF = lower.includes('cpf') || line.includes('.') || line.includes('-');
                 if (line.match(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/) || (digitsOnly.length === 11 && !lower.includes('@') && !lower.includes('cep') && isExplicitCPF)) {
@@ -135,7 +130,6 @@ function parseInputText(text) {
                 }
             }
 
-            // Endereço Automático por Dicionário Nacional de Logradouros
             if (data.endereco === "Não informado") {
                 const logradourosNacionais = [
                     'rua', 'r.', 'av.', 'avenida', 'alameda', 'al.', 'qd.', 'qd', 'quadra', 
@@ -158,7 +152,6 @@ function parseInputText(text) {
                 }
             }
 
-            // Produtos, Serviços e Telefones Móveis da Proposta
             const isMetadataLine = lower.includes('cpf') || lower.includes('cnpj') || lower.includes('gestor') || lower.includes('e-mail') || lower.includes('email') || lower.includes('endereço') || lower.includes('cep') || lower.includes('contato:') || lower.includes('telefone:');
 
             if (!isMetadataLine) {
@@ -171,7 +164,6 @@ function parseInputText(text) {
                 }
             }
 
-            // Fallback para Responsável/Cliente na primeira linha
             if (index === 0 && data.responsavel === "Não informado" && digitsOnly.length < 10) {
                 data.responsavel = line.trim();
                 if (data.cliente === "Não informado") {
@@ -277,7 +269,7 @@ function processData() {
 
             <div class="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs pdf-block">
                 <span class="font-bold text-blue-600 block mb-1">6. Encerramento, AURA e Pós-Vendas</span>
-                <p class="font-semibold text-emerald-700 mb-1">SEU PEDIDO FOI CONFIRMADO E A PREVISÃO DE INSTALAÇÃO É DE ATÉ 3 DIAS!</p>
+                <p class="font-semibold text-emerald-700 mb-1">SEU PEDIDO FOI CONFIRMADO E A PREVISÃO DE INSTALAÇÃO É DE ATÉ 5 DIAS!</p>
                 <p class="mb-2">📱 <strong>Aviso da AURA (WhatsApp):</strong> Para garantir a visita técnica, a AURA (Central da Vivo) enviará uma mensagem no WhatsApp através do número <strong>(11) 99915-1515</strong>. É fundamental responder <strong>'SIM'</strong> confirmando o agendamento no prazo, senão o sistema cancelará a visita técnica automaticamente.</p>
                 <p>📞 <strong>Pós-Vendas:</strong> Dúvidas referentes ao serviço adquirido, ligar no <strong>0800 007 9700</strong>.</p>
                 <p class="italic text-blue-600 mt-2">"A MS CONNECT AGRADECE SUA ATENÇÃO, TENHA UM ÓTIMO DIA!"</p>
